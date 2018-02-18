@@ -29,6 +29,7 @@ import org.apache.maven.shared.utils.cli.javatool.JavaToolResult;
 import org.codehaus.mojo.keytool.KeyTool;
 import org.codehaus.mojo.keytool.requests.KeyToolGenerateKeyPairRequest;
 import org.codehaus.mojo.webstart.util.IOUtil;
+import org.codehaus.mojo.webstart.util.JarUtil;
 import org.codehaus.plexus.component.annotations.Component;
 import org.codehaus.plexus.component.annotations.Requirement;
 import org.codehaus.plexus.logging.AbstractLogEnabled;
@@ -67,6 +68,9 @@ public class DefaultSignTool
     @Requirement
     protected IOUtil ioUtil;
 
+    @Requirement
+    protected JarUtil jarUtil;
+
     /**
      * {@inheritDoc}
      */
@@ -101,6 +105,41 @@ public class DefaultSignTool
      * {@inheritDoc}
      */
     public void sign( SignConfig config, File jarFile, File signedJar )
+            throws MojoExecutionException
+    {
+        if(SignCacheUtil.instance().isActivated()) {
+            signUsingCache(config, jarFile, signedJar);
+        } else {
+            signNonCached(config, jarFile, signedJar);
+        }
+    }
+
+    public void signUsingCache( SignConfig config, File jarFile, File signedJar )
+            throws MojoExecutionException
+    {
+        getLogger().info("Default sign source:   " + jarFile.getAbsolutePath());
+        getLogger().info("Default sign target: " + signedJar.getAbsolutePath());
+
+        if(SignCacheUtil.instance().isCached(jarFile, signedJar.getName())) {
+            getLogger().info("Found cache for " + signedJar.getName() + " (using hash of " + jarFile.getAbsolutePath() + ")");
+            SignCacheUtil.instance().replaceWithSignedCache(jarFile, signedJar);
+        }
+        else
+        {
+            String hash = SignCacheUtil.instance().hashOf(jarFile);
+            getLogger().info("Updating manifest: " + SignCacheUtil.instance().getManifest());
+            jarUtil.updateManifestEntries(jarFile, SignCacheUtil.instance().getManifest());
+
+            signNonCached(config, jarFile, signedJar);
+            getLogger().info("Cache signed file " + jarFile.getAbsolutePath());
+            SignCacheUtil.instance().cacheSignedFile(hash, signedJar);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    private void signNonCached( SignConfig config, File jarFile, File signedJar )
             throws MojoExecutionException
     {
 

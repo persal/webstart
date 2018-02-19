@@ -11,12 +11,12 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 
-import org.apache.commons.lang.RandomStringUtils;
 import org.codehaus.mojo.webstart.util.DefaultIOUtil;
 import org.codehaus.mojo.webstart.util.IOUtil;
 
@@ -40,8 +40,8 @@ public class SignCacheUtil {
             cacheBasedir = new File(userHome, ".m2/signcache");
         }
 
-        //unique = UUID.randomUUID().toString().replaceAll("-", "");
-        unique = RandomStringUtils.random(12, true, true);
+        unique = UUID.randomUUID().toString().replaceAll("-", "");
+        //unique = RandomStringUtils.random(12, true, true);
 
         activated = "true".equals(System.getProperty("signcache", "true"));
         System.out.println("Use signcache: " + activated);
@@ -99,7 +99,7 @@ public class SignCacheUtil {
                 Manifest mf = new Manifest();
                 mf.read(inputStream);
                 signature = mf.getMainAttributes().getValue("SHA-256-Digest-Manifest");
-                signature = signature.substring(0, 12);
+                signature = alias.toLowerCase() + "_" + signature.substring(0, 8);
                 dummyJar.delete();
             } catch (Exception e) {
                 throw new RuntimeException("Unable to determine SHA-256-Digest-Manifest from .SF file", e);
@@ -138,7 +138,7 @@ public class SignCacheUtil {
         if (jarName.startsWith("unprocessed_")) {
             jarName = jarName.substring(12);
         }
-        File cacheFile = new File(resolveCacheDir(jarName), hashOf(unsignedJarFile));
+        File cacheFile = new File(resolveCacheDir(jarName), jarName + "_" + hashOf(unsignedJarFile));
         System.out.println("isCached: " + cacheFile.exists() + "  " + cacheFile.getAbsoluteFile());
         return cacheFile.exists();
     }
@@ -196,7 +196,7 @@ public class SignCacheUtil {
     }
 
     public void copy(File sourceFile, File targetFile) {
-        File tmpFile = new File(targetFile.getParent(), "tmp_" + targetFile.getName() + "_" + unique);
+        File tmpFile = new File(cacheBasedir, "tmp_" + targetFile.getName() + "_" + unique);
         System.out.println("Tmp file: " + tmpFile.getAbsoluteFile());
         try {
             ioUtil.copyFile(sourceFile, tmpFile);

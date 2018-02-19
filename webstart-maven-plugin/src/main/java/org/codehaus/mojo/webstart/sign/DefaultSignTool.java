@@ -107,6 +107,12 @@ public class DefaultSignTool
     public void sign( SignConfig config, File jarFile, File signedJar )
             throws MojoExecutionException
     {
+        SignCacheUtil.instance().updateSignature(config, this);
+
+        // This basic form of the command assumes that the keystore to be used is in a file named .keystore in your home directory.
+        // It will create signature and signature block files with names x.SF and x.DSA respectively, where x is the first eight letters
+        // of the alias, all converted to upper case. This basic command will overwrite the original JAR file with the signed JAR file.
+
         if(SignCacheUtil.instance().isActivated()) {
             signUsingCache(config, jarFile, signedJar);
         } else {
@@ -139,7 +145,7 @@ public class DefaultSignTool
     /**
      * {@inheritDoc}
      */
-    private void signNonCached( SignConfig config, File jarFile, File signedJar )
+    public void signNonCached( SignConfig config, File jarFile, File signedJar )
             throws MojoExecutionException
     {
 

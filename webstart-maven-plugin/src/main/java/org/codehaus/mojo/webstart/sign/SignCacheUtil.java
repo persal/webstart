@@ -22,6 +22,12 @@ import org.codehaus.mojo.webstart.util.IOUtil;
 
 public class SignCacheUtil {
 
+    private static final String DIGEST_ALGO = "SHA-1";
+    private static final String PROPERTY_SIGNCACHE_DIR = "signcache.dir";
+    private static final String PROPERTY_USER_HOME = "user.home";
+    private static final String DEFAULT_SIGNCACHE_DIR = ".m2/signcache";
+    private static final String SYSTEM_PROPERTY_SIGNCACHE = "signcache"; //ex: -Dsigncache=false
+
     private boolean activated = true;
     private File cacheBasedir;
     private static String unique;
@@ -32,19 +38,20 @@ public class SignCacheUtil {
     private String signature = null;
 
     public SignCacheUtil() {
-        String customCacheBasedir = System.getProperty("signcache.dir");
+        String customCacheBasedir = System.getProperty(PROPERTY_SIGNCACHE_DIR);
         if (customCacheBasedir != null) {
             cacheBasedir = new File(customCacheBasedir);
         } else {
-            String userHome = System.getProperty("user.home");
-            cacheBasedir = new File(userHome, ".m2/signcache");
+            String userHome = System.getProperty(PROPERTY_USER_HOME);
+            cacheBasedir = new File(userHome, DEFAULT_SIGNCACHE_DIR);
         }
 
         unique = UUID.randomUUID().toString().replaceAll("-", "");
         //unique = RandomStringUtils.random(12, true, true);
 
-        activated = "true".equals(System.getProperty("signcache", "true"));
+        activated = "true".equals(System.getProperty(SYSTEM_PROPERTY_SIGNCACHE, "true"));
         System.out.println("Use signcache: " + activated);
+        System.out.println("Hash algo: " + DIGEST_ALGO);
     }
 
     public static SignCacheUtil instance() {
@@ -55,7 +62,7 @@ public class SignCacheUtil {
         InputStream in = null;
         try {
             in = new FileInputStream(file);
-            MessageDigest digest = MessageDigest.getInstance("SHA1");
+            MessageDigest digest = MessageDigest.getInstance(DIGEST_ALGO);
             byte[] block = new byte[4096];
             int length;
             while ((length = in.read(block)) > 0) {
@@ -126,7 +133,7 @@ public class SignCacheUtil {
 
     public String hash(byte[] text) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA1");
+            MessageDigest digest = MessageDigest.getInstance(DIGEST_ALGO);
             byte[] hash = digest.digest(text);
             return String.format("%032X", new BigInteger(1, hash));
         } catch (NoSuchAlgorithmException e) {

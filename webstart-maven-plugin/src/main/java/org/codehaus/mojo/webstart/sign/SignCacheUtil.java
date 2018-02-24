@@ -1,7 +1,11 @@
 package org.codehaus.mojo.webstart.sign;
 
+import org.codehaus.mojo.webstart.util.DefaultIOUtil;
+import org.codehaus.mojo.webstart.util.IOUtil;
+
 import java.io.Closeable;
 import java.io.File;
+import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -9,6 +13,9 @@ import java.io.InputStream;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -17,9 +24,6 @@ import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 
-import org.codehaus.mojo.webstart.util.DefaultIOUtil;
-import org.codehaus.mojo.webstart.util.IOUtil;
-
 public class SignCacheUtil {
 
     private static final String DIGEST_ALGO = "SHA-1";
@@ -27,6 +31,7 @@ public class SignCacheUtil {
     private static final String PROPERTY_USER_HOME = "user.home";
     private static final String DEFAULT_SIGNCACHE_DIR = ".m2/signcache";
     private static final String SYSTEM_PROPERTY_SIGNCACHE = "signcache"; //ex: -Dsigncache=false
+    private static final int MAX_CACHE_SAME_DIR = 20;
 
     private boolean activated = true;
     private File cacheBasedir;
@@ -89,7 +94,7 @@ public class SignCacheUtil {
     }
 
     public void updateSignature(SignConfig config, DefaultSignTool signTool) {
-        if(signature == null) {
+        if (signature == null) {
             try {
                 File dummyJar = SignCacheUtil.instance().createDummyJar();
                 dummyJar.deleteOnExit();
@@ -151,17 +156,13 @@ public class SignCacheUtil {
     }
 
     private File resolveCacheDir(String jarName) {
-        String snapSuffix = "-snapshot.jar";
-        if (jarName.toLowerCase().endsWith(snapSuffix)) {
-            jarName = jarName.substring(0, jarName.length() - snapSuffix.length());
-        }
-        int index = jarName.lastIndexOf('-');
-        if (index != -1) {
-            String subdir = jarName.substring(0, index).toLowerCase();
-            return new File(new File(cacheBasedir, signature), subdir);
-        } else {
-            return new File(cacheBasedir, signature);
-        }
+        String subdir = jarName.toLowerCase()
+                .replaceAll("snapshot", "")
+                .replaceAll("final", "")
+                .replaceAll("release", "")
+                .replaceAll("\\.jar$", "")
+                .replaceAll("[^a-z]*", "");
+        return new File(new File(cacheBasedir, signature), subdir);
     }
 
     public void replaceWithSignedCache(File unsignedJarFile, File targetJarFile) {
@@ -200,6 +201,36 @@ public class SignCacheUtil {
 
         File cacheFile = new File(cacheDir, jarName + "_" + hash);
         copy(signedJarFile, cacheFile);
+        purgeCache(cacheDir);
+    }
+
+    private void purgeCache(File cacheDir) {
+        File[] cacheFiles = cacheDir.listFiles(new FileFilter() {
+            @Override
+            public boolean accept(File pathname) {
+                return !pathname.isDirectory();
+            }
+        });
+
+        if (cacheFiles.length > MAX_CACHE_SAME_DIR) {
+            Arrays.sort(cacheFiles, new Comparator<File>() {
+                @Override
+                public int compare(File o1, File o2) {
+                    return Long.valueOf(o1.lastModified()).compareTo(o2.lastModified());
+                }
+            });
+            for (int i = 0; i < cacheFiles.length - MAX_CACHE_SAME_DIR; i++) {
+                System.out.println("Purge cache: " + cacheFiles[i].getName() + " " + new Date((cacheFiles[i].lastModified())));
+                try {
+                    if (!cacheFiles[i].delete()) {
+                        System.out.println("WARN unable to delete file " + cacheFiles[i].getAbsolutePath());
+                    }
+                } catch (Exception e) {
+                    System.out.println("WARN Unable to purge snapshots");
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
     public void copy(File sourceFile, File targetFile) {

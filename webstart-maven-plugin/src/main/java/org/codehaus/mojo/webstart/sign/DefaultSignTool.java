@@ -107,13 +107,11 @@ public class DefaultSignTool
     public void sign( SignConfig config, File jarFile, File signedJar )
             throws MojoExecutionException
     {
-        SignCacheUtil.instance().updateSignature(config, this);
-
         // This basic form of the command assumes that the keystore to be used is in a file named .keystore in your home directory.
         // It will create signature and signature block files with names x.SF and x.DSA respectively, where x is the first eight letters
         // of the alias, all converted to upper case. This basic command will overwrite the original JAR file with the signed JAR file.
 
-        if(SignCacheUtil.instance().isActivated()) {
+        if(SignCache.instance().isActivated()) {
             signUsingCache(config, jarFile, signedJar);
         } else {
             signNonCached(config, jarFile, signedJar);
@@ -123,22 +121,22 @@ public class DefaultSignTool
     public void signUsingCache( SignConfig config, File jarFile, File signedJar )
             throws MojoExecutionException
     {
-        getLogger().info("Default sign source:   " + jarFile.getAbsolutePath());
-        getLogger().info("Default sign target: " + signedJar.getAbsolutePath());
+        SignCache.instance().updateSignature(config, this);
+        getLogger().info("Sign source:   " + jarFile.getAbsolutePath());
+        getLogger().info("Sign target: " + signedJar.getAbsolutePath());
 
-        if(SignCacheUtil.instance().isCached(jarFile, signedJar.getName())) {
+        if(SignCache.instance().isCached(jarFile, signedJar.getName())) {
             getLogger().info("Found cache for " + signedJar.getName() + " (using hash of " + jarFile.getAbsolutePath() + ")");
-            SignCacheUtil.instance().replaceWithSignedCache(jarFile, signedJar);
+            SignCache.instance().replaceWithSignedCache(jarFile, signedJar);
         }
-        else
-        {
-            String hash = SignCacheUtil.instance().hashOf(jarFile);
-            getLogger().info("Updating manifest: " + SignCacheUtil.instance().getManifest());
-            jarUtil.updateManifestEntries(jarFile, SignCacheUtil.instance().getManifest());
+        else {
+            String hash = SignCache.instance().hashOf(jarFile);
+            getLogger().info("Updating manifest: " + SignCache.instance().getManifest());
+            jarUtil.updateManifestEntries(jarFile, SignCache.instance().getManifest());
 
             signNonCached(config, jarFile, signedJar);
             getLogger().info("Cache signed file " + jarFile.getAbsolutePath());
-            SignCacheUtil.instance().cacheSignedFile(hash, signedJar);
+            SignCache.instance().cacheSignedFile(hash, signedJar);
         }
     }
 

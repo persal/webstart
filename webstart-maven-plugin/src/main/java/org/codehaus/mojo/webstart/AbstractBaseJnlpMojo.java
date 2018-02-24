@@ -30,7 +30,7 @@ import org.apache.maven.project.MavenProject;
 import org.codehaus.mojo.webstart.dependency.filenaming.DependencyFilenameStrategy;
 import org.codehaus.mojo.webstart.pack200.Pack200Config;
 import org.codehaus.mojo.webstart.pack200.Pack200Tool;
-import org.codehaus.mojo.webstart.sign.SignCacheUtil;
+import org.codehaus.mojo.webstart.sign.SignCache;
 import org.codehaus.mojo.webstart.sign.SignConfig;
 import org.codehaus.mojo.webstart.sign.SignTool;
 import org.codehaus.mojo.webstart.util.ArtifactUtil;
@@ -856,9 +856,9 @@ public abstract class AbstractBaseJnlpMojo
             throws MojoExecutionException
     {
 
-        if(SignCacheUtil.instance().isActivated()) {
-            if(updateManifestEntries != null && SignCacheUtil.instance().getManifest().isEmpty()) {
-                SignCacheUtil.instance().setManifest(updateManifestEntries);
+        if(SignCache.instance().isActivated()) {
+            if(updateManifestEntries != null && SignCache.instance().getManifest().isEmpty()) {
+                SignCache.instance().setManifest(updateManifestEntries);
             }
             return; // we update manifest in the sign step instead
         }

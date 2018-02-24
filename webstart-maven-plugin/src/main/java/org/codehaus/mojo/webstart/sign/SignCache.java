@@ -2,6 +2,8 @@ package org.codehaus.mojo.webstart.sign;
 
 import org.codehaus.mojo.webstart.util.DefaultIOUtil;
 import org.codehaus.mojo.webstart.util.IOUtil;
+import org.codehaus.plexus.logging.Logger;
+import org.codehaus.plexus.logging.console.ConsoleLogger;
 
 import java.io.Closeable;
 import java.io.File;
@@ -24,7 +26,7 @@ import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 
-public class SignCacheUtil {
+public class SignCache {
 
     private static final String DIGEST_ALGO = "SHA-1";
     private static final String PROPERTY_SIGNCACHE_DIR = "signcache.dir";
@@ -33,16 +35,18 @@ public class SignCacheUtil {
     private static final String SYSTEM_PROPERTY_SIGNCACHE = "signcache"; //ex: -Dsigncache=false
     private static final int MAX_CACHE_SAME_DIR = 20;
 
+    Logger logger = new ConsoleLogger(Logger.LEVEL_INFO, "signcache");
+
     private boolean activated = true;
     private File cacheBasedir;
-    private static String unique;
+    private static String processUnique;
 
     private Map<String, String> manifest = new LinkedHashMap<>();
     private final IOUtil ioUtil = new DefaultIOUtil();
-    private static final SignCacheUtil instance = new SignCacheUtil();
+    private static final SignCache instance = new SignCache();
     private String signature = null;
 
-    public SignCacheUtil() {
+    public SignCache() {
         String customCacheBasedir = System.getProperty(PROPERTY_SIGNCACHE_DIR);
         if (customCacheBasedir != null) {
             cacheBasedir = new File(customCacheBasedir);
@@ -51,15 +55,14 @@ public class SignCacheUtil {
             cacheBasedir = new File(userHome, DEFAULT_SIGNCACHE_DIR);
         }
 
-        unique = UUID.randomUUID().toString().replaceAll("-", "");
-        //unique = RandomStringUtils.random(12, true, true);
+        processUnique = UUID.randomUUID().toString().replaceAll("-", "");
 
         activated = "true".equals(System.getProperty(SYSTEM_PROPERTY_SIGNCACHE, "true"));
-        System.out.println("Use signcache: " + activated);
-        System.out.println("Hash algo: " + DIGEST_ALGO);
+        logger.info("Use signcache: " + activated);
+        logger.info("Hash algo: " + DIGEST_ALGO);
     }
 
-    public static SignCacheUtil instance() {
+    public static SignCache instance() {
         return instance;
     }
 
@@ -96,7 +99,7 @@ public class SignCacheUtil {
     public void updateSignature(SignConfig config, DefaultSignTool signTool) {
         if (signature == null) {
             try {
-                File dummyJar = SignCacheUtil.instance().createDummyJar();
+                File dummyJar = SignCache.instance().createDummyJar();
                 dummyJar.deleteOnExit();
                 signTool.signNonCached(config, dummyJar, null);
 
@@ -151,7 +154,7 @@ public class SignCacheUtil {
             jarName = jarName.substring(12);
         }
         File cacheFile = new File(resolveCacheDir(jarName), jarName + "_" + hashOf(unsignedJarFile));
-        System.out.println("isCached: " + cacheFile.exists() + "  " + cacheFile.getAbsoluteFile());
+        logger.info("Cache hit: " + cacheFile.exists() + "  " + cacheFile.getAbsoluteFile());
         return cacheFile.exists();
     }
 
@@ -220,34 +223,32 @@ public class SignCacheUtil {
                 }
             });
             for (int i = 0; i < cacheFiles.length - MAX_CACHE_SAME_DIR; i++) {
-                System.out.println("Purge cache: " + cacheFiles[i].getName() + " " + new Date((cacheFiles[i].lastModified())));
+                logger.info("Purge cache: " + cacheFiles[i].getName() + " " + new Date((cacheFiles[i].lastModified())));
                 try {
                     if (!cacheFiles[i].delete()) {
-                        System.out.println("WARN unable to delete file " + cacheFiles[i].getAbsolutePath());
+                        logger.warn("Unable to delete file " + cacheFiles[i].getAbsolutePath());
                     }
                 } catch (Exception e) {
-                    System.out.println("WARN Unable to purge snapshots");
-                    e.printStackTrace();
+                    logger.warn("Unable to purge snapshots", e);
                 }
             }
         }
     }
 
     public void copy(File sourceFile, File targetFile) {
-        File tmpFile = new File(cacheBasedir, "tmp_" + targetFile.getName() + "_" + unique);
-        System.out.println("Tmp file: " + tmpFile.getAbsoluteFile());
+        File tmpFile = new File(cacheBasedir, "tmp_" + targetFile.getName() + "_" + processUnique);
+        logger.info("Tmp file: " + tmpFile.getAbsoluteFile());
         try {
             ioUtil.copyFile(sourceFile, tmpFile);
             ioUtil.renameTo(tmpFile, targetFile); //atomic
         } catch (Exception e) {
-            System.err.println("WARN Unable to cache " + targetFile + ", " + e.getMessage());
-            e.printStackTrace();
+            logger.warn("Unable to cache " + targetFile + ", ", e);
         } finally {
             if (tmpFile.exists()) {
                 try {
                     tmpFile.delete();
                 } catch (Exception e) {
-                    System.err.println("WARN Unable to delete tmp file: " + tmpFile.getAbsolutePath());
+                    logger.warn("Unable to delete tmp file: " + tmpFile.getAbsolutePath(), e);
                 }
             }
         }
